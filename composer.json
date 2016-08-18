@@ -2,7 +2,7 @@
     "name": "framework/php-easy-restful",
     "version": "0.0.1",
     "dist": {
-        "url": "https://github.com/vsnake01/php-easy-restful.git",
+        "url": "https://github.com/vsnake01/php-easy-restful/archive/master.zip",
         "type": "zip"
     }
 }
