@@ -4,5 +4,8 @@
     "dist": {
         "url": "https://github.com/vsnake01/php-easy-restful/archive/master.zip",
         "type": "zip"
-    }
+    },
+     "autoload": {
+        "psr-4": { "PHPEASYRESTful\\": "" },
+    },
 }
