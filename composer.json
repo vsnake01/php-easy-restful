@@ -6,6 +6,6 @@
         "type": "zip"
     },
      "autoload": {
-        "psr-4": { "PHPEASYRESTful\\": "" }
+        "psr-4": { "PHPEASYRESTful\\": "core/" }
     }
 }
