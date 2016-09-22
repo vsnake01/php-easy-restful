@@ -107,7 +107,7 @@ class RESTful
 				header('WWW-Authenticate: unknown');
 				exit;
 			} else {
-				http_response_code(500);
+				http_response_code(400);
 			}
 			echo json_encode([
 				'error' => $e->getCode(),
