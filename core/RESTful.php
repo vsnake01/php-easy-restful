@@ -9,6 +9,7 @@
 namespace PHPEASYRESTful;
 
 use App\Auth;
+use PHPEASYRESTful;
 
 class RESTful
 {
@@ -29,10 +30,26 @@ class RESTful
 		$Params					= [],
 		$RequiredParamsCount	= 0;
 
+    const
+        OPT_NAMESPACE   = 'OPT_NAMESPACE',
+        OPT_INDEXCLASS  = 'OPT_INDEXCLASS',
+        OPT_AUTHCLASS   = 'OPT_AUTHCLASS';
+    
+    private $Options = [
+        self::OPT_NAMESPACE => 'App',
+        self::OPT_AUTHCLASS => 'Auth',
+        self::OPT_INDEXCLASS => 'Index',
+    ];
+
 	private $ErrorDescription = null;
 
-	public function __construct()
+	public function __construct(Array $Options)
 	{
+	    foreach ($Options as $k=>$v) {
+	        if (array_key_exists($k, $this->Options)) {
+	            $this->Options[$k] = $v;
+            }
+        }
 		$this->parseURI();
 		return $this;
 	}
@@ -45,13 +62,13 @@ class RESTful
 
 		if (
 			!empty ($uri[1]) &&
-			class_exists('App\\'.$uri[1])
+			class_exists($this->Options[self::OPT_NAMESPACE].'\\'.$uri[1])
 		) {
-			$this->Class = 'App\\'.$uri[1];
+			$this->Class = $this->Options[self::OPT_NAMESPACE].'\\'.$uri[1];
 		} else {
-			$this->Class = 'App\\Index';
+			$this->Class = $this->Options[self::OPT_NAMESPACE].'\\'.$this->Options[self::OPT_INDEXCLASS];
 		}
-
+		
 		if (!empty ($uri[2])) {
 			try {
 				$ref = new \ReflectionClass($this->Class);
@@ -86,8 +103,9 @@ class RESTful
 	public function run()
 	{
 		try {
-			if (!Auth::isAuthenticated() && $this->RequireAuth) {
-				throw new RESTException(Error::AUTH_UNAUTHORIZED);
+		    $authClass = $this->Options[self::OPT_NAMESPACE].'\\Auth';
+			if (!$authClass::isAuthenticated() && $this->RequireAuth) {
+				throw new Exception(Error::AUTH_UNAUTHORIZED);
 			}
 			$output = $this->callObject()->getOutput();
 			$redirect = $this->callObject()->getRedirect();
@@ -101,7 +119,7 @@ class RESTful
 			} elseif ($output !== null) {
 				echo json_encode($output);
 			}
-		} catch (RESTException $e) {
+		} catch (Exception $e) {
 			if ($e->getCode() == Error::AUTH_UNAUTHORIZED) {
 				header('Location: /Auth/Session', true, 401);
 				header('WWW-Authenticate: unknown');
@@ -133,7 +151,7 @@ class RESTful
 					$RequiredParameters .= ($RequiredParameters?',':'').$param;
 				}
 				$this->ErrorDescription = 'Required Parameters: '.$RequiredParameters;
-				throw new RESTException(Error::CORE_WRONG_PARAMETERS);
+				throw new Exception(Error::CORE_WRONG_PARAMETERS);
 			}
 			// Check for first required parameters to be passed
 			$passParams = [];
@@ -151,7 +169,7 @@ class RESTful
 			}
 			if ($MissedParameters && count($passParams)) {
 				$this->ErrorDescription = 'Missed Parameters: '.$MissedParameters;
-				throw new RESTException(Error::CORE_WRONG_PARAMETERS);
+				throw new Exception(Error::CORE_WRONG_PARAMETERS);
 			}
 			call_user_func_array([$obj, $this->Method], $passParams);
 		} else {
