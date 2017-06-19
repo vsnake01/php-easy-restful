@@ -8,51 +8,99 @@
  */
 namespace PHPEASYRESTful;
 
-use App\Auth;
-use PHPEASYRESTful;
+use App\AppException;
+use Symfony\Component\Config\Definition\Exception\Exception;
 
 class RESTful
 {
-	const
-		R_GET		= 'GET',
-		R_POST		= 'POST',
-		R_PUT		= 'PUT',
-		R_PATCH		= 'PATCH',
-		R_DELETE	= 'DELETE',
-		R_HEAD		= 'HEAD',
-		R_OPTIONS	= 'OPTIONS';
-
-	private
-		$RequestType			= null,
-		$Method					= 'Index',
-		$Class					= 'Index',
-		$RequireAuth			= true,
-		$Params					= [],
-		$RequiredParamsCount	= 0;
-
     const
-        OPT_NAMESPACE   = 'OPT_NAMESPACE',
-        OPT_INDEXCLASS  = 'OPT_INDEXCLASS',
-        OPT_AUTHCLASS   = 'OPT_AUTHCLASS';
-    
-    private $Options = [
-        self::OPT_NAMESPACE => 'App',
-        self::OPT_AUTHCLASS => 'Auth',
-        self::OPT_INDEXCLASS => 'Index',
-    ];
+        R_GET = 'GET',
+        R_POST = 'POST',
+        R_PUT = 'PUT',
+        R_PATCH = 'PATCH',
+        R_DELETE = 'DELETE',
+        R_HEAD = 'HEAD',
+        R_OPTIONS = 'OPTIONS',
+        F_AUTH = 'PHPEASYRESTFUL_AUTHENTICATED';
 
-	private $ErrorDescription = null;
+    private
+        $RequestType = null,
+        $Method = 'Index',
+        $Class = 'Index',
+        $RequireAuth = false,
+        $Params = [],
+        $RequiredParamsCount = 0;
 
-	public function __construct(Array $Options)
-	{
-	    foreach ($Options as $k=>$v) {
-	        if (array_key_exists($k, $this->Options)) {
-	            $this->Options[$k] = $v;
-            }
+    private $ErrorDescription = null;
+
+    private $ApplicationAuthenticationClassName = '\App\Auth';
+    private $ApplicationAuthenticationMethodName = 'isAuthenticated';
+    private $ApplicationAuthenticated = false;
+    private $ApplicationNamespace;
+
+    public function __construct()
+    {
+        try {
+            $this->ApplicationAuthenticated = $this->isAuthenticated();
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode([
+                'error' => $e->getMessage(),
+            ]);
+            exit;
         }
-		$this->parseURI();
-		return $this;
-	}
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    private function isAuthenticated(): bool
+    {
+        $className = $this->ApplicationNamespace.$this->ApplicationAuthenticationClassName;
+        return $className::{$this->ApplicationAuthenticationMethodName}()
+                ? true
+                : false;
+    }
+
+    /**
+     * @param $className
+     * @return RESTful
+     */
+    public function setAuthenticationClassName($className): RESTful
+    {
+        $this->ApplicationAuthenticationClassName = $className;
+        return $this;
+    }
+
+    /**
+     * @param $methodName
+     * @return RESTful
+     */
+    public function setAuthenticationMethodName($methodName): RESTful
+    {
+        $this->ApplicationAuthenticationMethodName = $methodName;
+        $this->RequireAuth = true;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getApplicationNameSpace(): string
+    {
+        return $this->ApplicationNameSpace;
+    }
+
+    /**
+     * @param string $ApplicationNameSpace
+     * @return RESTful
+     */
+    public function setApplicationNameSpace(string $ApplicationNameSpace): RESTful
+    {
+        $this->ApplicationNameSpace = $ApplicationNameSpace;
+        return $this;
+    }
 
 	private function parseURI()
 	{
@@ -60,15 +108,12 @@ class RESTful
 		$uri = parse_url($_SERVER['REQUEST_URI']);
 		$uri = explode('/', $uri['path']);
 
-		if (
-			!empty ($uri[1]) &&
-			class_exists($this->Options[self::OPT_NAMESPACE].'\\'.$uri[1])
-		) {
-			$this->Class = $this->Options[self::OPT_NAMESPACE].'\\'.$uri[1];
-		} else {
-			$this->Class = $this->Options[self::OPT_NAMESPACE].'\\'.$this->Options[self::OPT_INDEXCLASS];
-		}
-		
+        $this->Class = 'Index';
+
+        if (!empty($uri[1])) {
+            $this->Class = $this->getApplicationNameSpace().'\\'.$uri[1];
+        }
+
 		if (!empty ($uri[2])) {
 			try {
 				$ref = new \ReflectionClass($this->Class);
@@ -95,7 +140,13 @@ class RESTful
 					}
 				}
 			} catch (\ReflectionException $e) {
-				echo 'Wrong Method Requested: '.$e->getMessage();
+
+                http_response_code(404);
+                echo json_encode([
+                    'Error' => $e->getCode(),
+                    'Message' => $e->getMessage(),
+                ]);
+                exit;
 			}
 		}
 	}
@@ -103,12 +154,13 @@ class RESTful
 	public function run()
 	{
 		try {
-		    $authClass = $this->Options[self::OPT_NAMESPACE].'\\Auth';
-			if (!$authClass::isAuthenticated() && $this->RequireAuth) {
-				throw new Exception(Error::AUTH_UNAUTHORIZED);
+            $this->parseURI();
+			if ($this->RequireAuth && !$this->ApplicationAuthenticated) {
+				throw new RESTException(Error::AUTH_UNAUTHORIZED);
 			}
-			$output = $this->callObject()->getOutput();
-			$redirect = $this->callObject()->getRedirect();
+            $obj = $this->callObject();
+			$output = $obj->getOutput();
+			$redirect = $obj->getRedirect();
 			if ($this->RequestType == self::R_POST) {
 				http_response_code(201);
 			}
@@ -119,7 +171,16 @@ class RESTful
 			} elseif ($output !== null) {
 				echo json_encode($output);
 			}
-		} catch (Exception $e) {
+		} catch (\Error $e) {
+            $this->finalOutput(
+                json_encode([
+                    'SysError' => $e->getCode(),
+                    'Message' => $e->getMessage(),
+                    'Description' => $this->ErrorDescription,
+                ]),
+                500
+            );
+        } catch (RESTException $e) {
 			if ($e->getCode() == Error::AUTH_UNAUTHORIZED) {
 				header('Location: /Auth/Session', true, 401);
 				header('WWW-Authenticate: unknown');
@@ -127,22 +188,38 @@ class RESTful
 			} else {
 				http_response_code(400);
 			}
-			echo json_encode([
-				'error' => $e->getCode(),
-				'message' => $e->getMessage(),
-				'description' => $this->ErrorDescription,
-			]);
+
+			$this->finalOutput(
+                json_encode([
+                    'SysError' => $e->getCode(),
+                    'Message' => $e->getMessage(),
+                    'Description' => $this->ErrorDescription,
+                ])
+            );
 		} catch (\PDOException $e) {
-			echo $e->getMessage();
-		}
-	}
+            http_response_code(500);
+		} catch (AppException $e) {
+		    $this->finalOutput(
+                json_encode([
+                    'AppError' => $e->getCode(),
+                    'Message' => $e->getMessage(),
+                ])
+            );
+        }
+    }
 
 	private function callObject()
 	{
-		$obj = new $this->Class;
+	    $className = $this->Class;
+	    $incomeParams = ($this->RequestType == self::R_GET ? $_GET : $_POST);
+
+		$obj = new $className;
 		if ($this->Params) {
 			// Check for minimum amount of parameters
-			if ($this->RequiredParamsCount > count($_POST)) {
+
+			if (
+			    $this->RequiredParamsCount > count($incomeParams)
+            ) {
 				$RequiredParameters = '';
 				foreach ($this->Params as $k=>$param) {
 					if ($k>=$this->RequiredParamsCount) {
@@ -158,24 +235,34 @@ class RESTful
 			$MissedParameters = '';
 			$checkedParameters = 0;
 			foreach ($this->Params as $ParamName) {
-				if (!isset ($_POST[$ParamName])) {
+				if (!isset ($incomeParams[$ParamName])) {
 					if ($checkedParameters < $this->RequiredParamsCount) {
 						$MissedParameters .= ($MissedParameters?', ':'').$ParamName;
 					}
 				} else {
-					$passParams[] = $_POST[$ParamName];
+					$passParams[] = $incomeParams[$ParamName];
 					$checkedParameters++;
 				}
 			}
-			if ($MissedParameters && count($passParams)) {
+			if ($MissedParameters && !empty($incomeParams)) {
 				$this->ErrorDescription = 'Missed Parameters: '.$MissedParameters;
 				throw new Exception(Error::CORE_WRONG_PARAMETERS);
 			}
-			call_user_func_array([$obj, $this->Method], $passParams);
+            call_user_func_array([$obj, $this->Method], $passParams);
+
 		} else {
-			$obj->{$this->Method}();
+            $obj->{$this->Method}();
 		}
 
 		return $obj;
 	}
+
+	private function finalOutput(string $Output, int $HTTPCode=null)
+    {
+        if ($HTTPCode) {
+            http_response_code($HTTPCode);
+        }
+        echo $Output;
+        exit;
+    }
 }
