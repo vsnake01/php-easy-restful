@@ -9,7 +9,6 @@
 namespace PHPEASYRESTful;
 
 use App\AppException;
-use Symfony\Component\Config\Definition\Exception\Exception;
 
 class RESTful
 {
@@ -156,7 +155,7 @@ class RESTful
 		try {
             $this->parseURI();
 			if ($this->RequireAuth && !$this->ApplicationAuthenticated) {
-				throw new RESTException(Error::AUTH_UNAUTHORIZED);
+				throw new Exception(Error::AUTH_UNAUTHORIZED);
 			}
             $obj = $this->callObject();
 			$output = $obj->getOutput();
@@ -180,7 +179,7 @@ class RESTful
                 ]),
                 500
             );
-        } catch (RESTException $e) {
+        } catch (Exception $e) {
 			if ($e->getCode() == Error::AUTH_UNAUTHORIZED) {
 				header('Location: /Auth/Session', true, 401);
 				header('WWW-Authenticate: unknown');
