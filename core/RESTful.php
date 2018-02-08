@@ -128,7 +128,13 @@ class RESTful
                             $level = LOG_INFO;
                     }
 
-                    error_log(json_encode($arguments));
+                    openlog(php_sapi_name(), LOG_PID, LOG_LOCAL0);
+                    syslog($level, json_encode($arguments));
+                    closelog();
+                    
+                    if ($level == LOG_ERR || $level == LOG_CRIT) {
+                        error_log(json_encode($arguments));
+                    }
                 }
             };
         }
