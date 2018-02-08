@@ -30,10 +30,13 @@ class RESTful
 
     private $ErrorDescription = null;
 
+    private $Logger;
+
     private $ApplicationAuthenticationClassName = '\App\Auth';
     private $ApplicationAuthenticationMethodName = 'isAuthenticated';
     private $ApplicationAuthenticated = false;
     private $ApplicationNamespace;
+    private $LoggerClassName;
 
     public function __construct()
     {
@@ -79,6 +82,57 @@ class RESTful
         $this->ApplicationAuthenticationMethodName = $methodName;
         $this->RequireAuth = true;
         return $this;
+    }
+
+    /**
+     * @param $LoggerObject
+     * @return RESTful
+     */
+    public function setLogger($LoggerObject): RESTful
+    {
+        $this->Logger = $LoggerObject;
+        return $this;
+    }
+
+    public function getLogger()
+    {
+        if (!is_object($this->Logger)) {
+            $this->Logger = new class {
+                public function __call($name, $arguments)
+                {
+                    switch($name) {
+                        case 'warn':
+                        case 'warning':
+                            $level = LOG_WARNING;
+                            break;
+                        case 'debug':
+                            $level = LOG_DEBUG;
+                            break;
+                        case 'error':
+                            $level = LOG_ERR;
+                            break;
+                        case 'fatal':
+                            $level = LOG_CRIT;
+                            break;
+                        case 'all':
+                            $level = LOG_INFO;
+                            break;
+                        case 'info':
+                        case 'trace':
+                        case 'all':
+                        default:
+                            $level = LOG_INFO;
+                    }
+
+                    openlog(php_sapi_name(), LOG_PID, LOG_LOCAL0);
+
+                    syslog($level, json_encode($arguments));
+
+                    closelog();
+                }
+            };
+        }
+        return $this->Logger;
     }
 
     /**
@@ -245,10 +299,15 @@ class RESTful
 				$this->ErrorDescription = 'Missed Parameters: '.$MissedParameters;
 				throw new Exception(Error::CORE_WRONG_PARAMETERS);
 			}
-            call_user_func_array([$obj, $this->Method], $passParams);
+			
+			if (method_exists($obj, 'setLogger')) {
+				$obj->setLogger($this->getLogger());
+			}
+
+			call_user_func_array([$obj, $this->Method], $passParams);
 
 		} else {
-            $obj->{$this->Method}();
+			$obj->{$this->Method}();
 		}
 
 		return $obj;
