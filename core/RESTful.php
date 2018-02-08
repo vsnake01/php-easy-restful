@@ -300,9 +300,7 @@ class RESTful
 				throw new Exception(Error::CORE_WRONG_PARAMETERS);
 			}
 			
-			if (method_exists($obj, 'setLogger')) {
-				$obj->setLogger($this->getLogger());
-			}
+			$obj->setLogger($this->getLogger());
 
 			call_user_func_array([$obj, $this->Method], $passParams);
 
