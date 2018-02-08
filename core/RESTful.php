@@ -9,6 +9,8 @@
 
 namespace PHPEASYRESTful;
 
+use Propel\Runtime\Exception\PropelException;
+
 class RESTful
 {
     const
@@ -252,6 +254,7 @@ class RESTful
                 echo json_encode($output);
             }
         } catch (\Error $e) {
+            $this->getLogger()->error($e->getMessage());
             $this->finalOutput(
                 json_encode([
                     'SysError' => $e->getCode(),
@@ -261,6 +264,7 @@ class RESTful
                 500
             );
         } catch (Exception $e) {
+            $this->getLogger()->error($e->getMessage());
             if ($e->getCode() == Error::AUTH_UNAUTHORIZED) {
                 header('Location: /Auth/Session', true, 401);
                 header('WWW-Authenticate: unknown');
@@ -277,8 +281,13 @@ class RESTful
                 ])
             );
         } catch (\PDOException $e) {
+            $this->getLogger()->error($e->getMessage());
+            http_response_code(500);
+        } catch (PropelException $e) {
+            $this->getLogger()->error($e->getMessage());
             http_response_code(500);
         } catch (\App\Exception $e) {
+            $this->getLogger()->error($e->getMessage());
             http_response_code($e->getHttpCode());
             $this->finalOutput(
                 json_encode([
