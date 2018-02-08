@@ -128,11 +128,7 @@ class RESTful
                             $level = LOG_INFO;
                     }
 
-                    openlog(php_sapi_name(), LOG_PID, LOG_LOCAL0);
-
-                    syslog($level, json_encode($arguments));
-
-                    closelog();
+                    error_log(json_encode($arguments));
                 }
             };
         }
