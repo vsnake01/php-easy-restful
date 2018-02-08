@@ -12,8 +12,19 @@ class RESTApplication
 {
     protected $Output = null;
     protected $Redirect = null;
+    private $Logger;
 
     public function __construct(){}
+
+    public function setLogger($LoggerObject)
+    {
+        $this->Logger = $LoggerObject;
+    }
+
+    public function getLogger()
+    {
+        return $this->Logger;
+    }
 
     public function getOutput()
     {
