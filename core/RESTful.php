@@ -6,6 +6,7 @@
  * Date: 12/8/15
  * Time: 10:37 PM
  */
+
 namespace PHPEASYRESTful;
 
 class RESTful
@@ -57,10 +58,10 @@ class RESTful
      */
     private function isAuthenticated(): bool
     {
-        $className = $this->ApplicationNamespace.$this->ApplicationAuthenticationClassName;
+        $className = $this->ApplicationNamespace . $this->ApplicationAuthenticationClassName;
         return $className::{$this->ApplicationAuthenticationMethodName}()
-                ? true
-                : false;
+            ? true
+            : false;
     }
 
     /**
@@ -97,10 +98,11 @@ class RESTful
     public function getLogger()
     {
         if (!is_object($this->Logger)) {
-            $this->Logger = new class {
+            $this->Logger = new class
+            {
                 public function __call($name, $arguments)
                 {
-                    switch($name) {
+                    switch ($name) {
                         case 'warn':
                         case 'warning':
                             $level = LOG_WARNING;
@@ -153,44 +155,71 @@ class RESTful
         return $this;
     }
 
-	private function parseURI()
-	{
-		$this->RequestType = $_SERVER['REQUEST_METHOD'];
-		$uri = parse_url($_SERVER['REQUEST_URI']);
-		$uri = explode('/', $uri['path']);
+    private function parseURI()
+    {
+        $this->RequestType = $_SERVER['REQUEST_METHOD'];
+        $uri = parse_url($_SERVER['REQUEST_URI']);
+        $uri = explode('/', $uri['path']);
 
         $this->Class = 'Index';
 
         if (!empty($uri[1])) {
-            $this->Class = $this->getApplicationNameSpace().'\\'.$uri[1];
+            $this->Class = $this->getApplicationNameSpace() . '\\' . $uri[1];
         }
 
-		if (!empty ($uri[2])) {
-			try {
-				$ref = new \ReflectionClass($this->Class);
-				$prefix = 'get';
-				if ($this->RequestType == self::R_POST) {
-					$prefix = 'create';
-				} elseif ($this->RequestType == self::R_DELETE) {
-					$prefix = 'delete';
-				} elseif ($this->RequestType == self::R_PUT) {
-					$prefix = 'update';
-				} elseif ($this->RequestType == self::R_PATCH) {
-					$prefix = "update";
-				}
-				$m = $ref->getMethod($prefix.$uri[2]);
-				$this->Method = $m->name;
-				if (stristr($m->getDocComment(), '@auth false')) {
-					$this->RequireAuth = false;
-				}
-				$this->RequiredParamsCount = $m->getNumberOfRequiredParameters();
-				$params = $m->getParameters();
-				if (is_array ($params)) {
-					foreach ($params as $parameter) {
-						$this->Params[] = $parameter->name;
-					}
-				}
-			} catch (\ReflectionException $e) {
+        $collectionRequest = false;
+
+        if (!class_exists($this->Class)) {
+            // Let's check for collections request
+            if (substr($this->Class, -1) == 's') {
+                $class = substr($this->Class, 0, -1);
+                if (class_exists(($class))) {
+                    $this->Class = $class;
+                    $collectionRequest = true;
+                }
+            }
+            if (substr($this->Class, -2) == 'es') {
+                $class = substr($this->Class, 0, -2);
+                if (class_exists(($class))) {
+                    $this->Class = $class;
+                    $collectionRequest = true;
+                }
+            }
+        }
+
+        if (!empty ($uri[2]) || $collectionRequest) {
+            try {
+                $ref = new \ReflectionClass($this->Class);
+
+                if ($collectionRequest) {
+                    $m = $ref->getMethod('getCollection');
+                } else {
+                    $prefix = 'get';
+                    if ($this->RequestType == self::R_POST) {
+                        $prefix = 'create';
+                    } elseif ($this->RequestType == self::R_DELETE) {
+                        $prefix = 'delete';
+                    } elseif ($this->RequestType == self::R_PUT) {
+                        $prefix = 'update';
+                    } elseif ($this->RequestType == self::R_PATCH) {
+                        $prefix = "update";
+                    }
+                    $m = $ref->getMethod($prefix . $uri[2]);
+                }
+
+                $this->Method = $m->name;
+
+                if (stristr($m->getDocComment(), '@auth false')) {
+                    $this->RequireAuth = false;
+                }
+                $this->RequiredParamsCount = $m->getNumberOfRequiredParameters();
+                $params = $m->getParameters();
+                if (is_array($params)) {
+                    foreach ($params as $parameter) {
+                        $this->Params[] = $parameter->name;
+                    }
+                }
+            } catch (\ReflectionException $e) {
 
                 http_response_code(404);
                 echo json_encode([
@@ -198,31 +227,31 @@ class RESTful
                     'Message' => $e->getMessage(),
                 ]);
                 exit;
-			}
-		}
-	}
+            }
+        }
+    }
 
-	public function run()
-	{
-		try {
+    public function run()
+    {
+        try {
             $this->parseURI();
-			if ($this->RequireAuth && !$this->ApplicationAuthenticated) {
-				throw new Exception(Error::AUTH_UNAUTHORIZED);
-			}
+            if ($this->RequireAuth && !$this->ApplicationAuthenticated) {
+                throw new Exception(Error::AUTH_UNAUTHORIZED);
+            }
             $obj = $this->callObject();
-			$output = $obj->getOutput();
-			$redirect = $obj->getRedirect();
-			if ($this->RequestType == self::R_POST) {
-				http_response_code(201);
-			}
-			if ($redirect) {
-				if ($this->RequestType == self::R_POST) {
-					header('Location: '.$redirect, true, 201);
-				}
-			} elseif ($output !== null) {
-				echo json_encode($output);
-			}
-		} catch (\Error $e) {
+            $output = $obj->getOutput();
+            $redirect = $obj->getRedirect();
+            if ($this->RequestType == self::R_POST) {
+                http_response_code(201);
+            }
+            if ($redirect) {
+                if ($this->RequestType == self::R_POST) {
+                    header('Location: ' . $redirect, true, 201);
+                }
+            } elseif ($output !== null) {
+                echo json_encode($output);
+            }
+        } catch (\Error $e) {
             $this->finalOutput(
                 json_encode([
                     'SysError' => $e->getCode(),
@@ -232,25 +261,26 @@ class RESTful
                 500
             );
         } catch (Exception $e) {
-			if ($e->getCode() == Error::AUTH_UNAUTHORIZED) {
-				header('Location: /Auth/Session', true, 401);
-				header('WWW-Authenticate: unknown');
-				exit;
-			} else {
-				http_response_code(400);
-			}
+            if ($e->getCode() == Error::AUTH_UNAUTHORIZED) {
+                header('Location: /Auth/Session', true, 401);
+                header('WWW-Authenticate: unknown');
+                exit;
+            } else {
+                http_response_code(400);
+            }
 
-			$this->finalOutput(
+            $this->finalOutput(
                 json_encode([
                     'SysError' => $e->getCode(),
                     'Message' => $e->getMessage(),
                     'Description' => $this->ErrorDescription,
                 ])
             );
-		} catch (\PDOException $e) {
+        } catch (\PDOException $e) {
             http_response_code(500);
-		} catch (\App\Exception $e) {
-		    $this->finalOutput(
+        } catch (\App\Exception $e) {
+            http_response_code($e->getHttpCode());
+            $this->finalOutput(
                 json_encode([
                     'AppError' => $e->getCode(),
                     'Message' => $e->getMessage(),
@@ -259,59 +289,59 @@ class RESTful
         }
     }
 
-	private function callObject()
-	{
-	    $className = $this->Class;
-	    $incomeParams = ($this->RequestType == self::R_GET ? $_GET : $_POST);
+    private function callObject()
+    {
+        $className = $this->Class;
+        $incomeParams = ($this->RequestType == self::R_GET ? $_GET : $_POST);
 
-		$obj = new $className;
-		if ($this->Params) {
-			// Check for minimum amount of parameters
+        $obj = new $className;
+        if ($this->Params) {
+            // Check for minimum amount of parameters
 
-			if (
-			    $this->RequiredParamsCount > count($incomeParams)
+            if (
+                $this->RequiredParamsCount > count($incomeParams)
             ) {
-				$RequiredParameters = '';
-				foreach ($this->Params as $k=>$param) {
-					if ($k>=$this->RequiredParamsCount) {
-						break;
-					}
-					$RequiredParameters .= ($RequiredParameters?',':'').$param;
-				}
-				$this->ErrorDescription = 'Required Parameters: '.$RequiredParameters;
-				throw new Exception(Error::CORE_WRONG_PARAMETERS);
-			}
-			// Check for first required parameters to be passed
-			$passParams = [];
-			$MissedParameters = '';
-			$checkedParameters = 0;
-			foreach ($this->Params as $ParamName) {
-				if (!isset ($incomeParams[$ParamName])) {
-					if ($checkedParameters < $this->RequiredParamsCount) {
-						$MissedParameters .= ($MissedParameters?', ':'').$ParamName;
-					}
-				} else {
-					$passParams[] = $incomeParams[$ParamName];
-					$checkedParameters++;
-				}
-			}
-			if ($MissedParameters && !empty($incomeParams)) {
-				$this->ErrorDescription = 'Missed Parameters: '.$MissedParameters;
-				throw new Exception(Error::CORE_WRONG_PARAMETERS);
-			}
-			
-			$obj->setLogger($this->getLogger());
+                $RequiredParameters = '';
+                foreach ($this->Params as $k => $param) {
+                    if ($k >= $this->RequiredParamsCount) {
+                        break;
+                    }
+                    $RequiredParameters .= ($RequiredParameters ? ',' : '') . $param;
+                }
+                $this->ErrorDescription = 'Required Parameters: ' . $RequiredParameters;
+                throw new Exception(Error::CORE_WRONG_PARAMETERS);
+            }
+            // Check for first required parameters to be passed
+            $passParams = [];
+            $MissedParameters = '';
+            $checkedParameters = 0;
+            foreach ($this->Params as $ParamName) {
+                if (!isset ($incomeParams[$ParamName])) {
+                    if ($checkedParameters < $this->RequiredParamsCount) {
+                        $MissedParameters .= ($MissedParameters ? ', ' : '') . $ParamName;
+                    }
+                } else {
+                    $passParams[] = $incomeParams[$ParamName];
+                    $checkedParameters++;
+                }
+            }
+            if ($MissedParameters && !empty($incomeParams)) {
+                $this->ErrorDescription = 'Missed Parameters: ' . $MissedParameters;
+                throw new Exception(Error::CORE_WRONG_PARAMETERS);
+            }
 
-			call_user_func_array([$obj, $this->Method], $passParams);
+            $obj->setLogger($this->getLogger());
 
-		} else {
-			$obj->{$this->Method}();
-		}
+            call_user_func_array([$obj, $this->Method], $passParams);
 
-		return $obj;
-	}
+        } else {
+            $obj->{$this->Method}();
+        }
 
-	private function finalOutput(string $Output, int $HTTPCode=null)
+        return $obj;
+    }
+
+    private function finalOutput(string $Output, int $HTTPCode = null)
     {
         if ($HTTPCode) {
             http_response_code($HTTPCode);
