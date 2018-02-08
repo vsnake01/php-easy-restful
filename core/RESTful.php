@@ -8,8 +8,6 @@
  */
 namespace PHPEASYRESTful;
 
-use App\AppException;
-
 class RESTful
 {
     const
@@ -197,7 +195,7 @@ class RESTful
             );
 		} catch (\PDOException $e) {
             http_response_code(500);
-		} catch (AppException $e) {
+		} catch (\App\Exception $e) {
 		    $this->finalOutput(
                 json_encode([
                     'AppError' => $e->getCode(),
