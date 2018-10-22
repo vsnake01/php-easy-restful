@@ -35,7 +35,7 @@ class RESTful
 
     private $Logger;
 
-    private $ApplicationAuthenticationClassName = '\App\Auth';
+    private $ApplicationAuthenticationClassName = '\App\Route\Auth';
     private $ApplicationAuthenticationMethodName = 'isAuthenticated';
     private $ApplicationAuthenticated = false;
     private $ApplicationNamespace;
@@ -43,15 +43,6 @@ class RESTful
 
     public function __construct()
     {
-        try {
-            $this->ApplicationAuthenticated = $this->isAuthenticated();
-        } catch (\Throwable $e) {
-            http_response_code(500);
-            echo json_encode([
-                'error' => $e->getMessage(),
-            ]);
-            exit;
-        }
         return $this;
     }
 
@@ -60,7 +51,7 @@ class RESTful
      */
     private function isAuthenticated(): bool
     {
-        $className = $this->ApplicationNamespace . $this->ApplicationAuthenticationClassName;
+        $className = $this->ApplicationNamespace . '\\' . $this->ApplicationAuthenticationClassName;
         return $className::{$this->ApplicationAuthenticationMethodName}()
             ? true
             : false;
@@ -146,16 +137,16 @@ class RESTful
      */
     public function getApplicationNameSpace(): string
     {
-        return $this->ApplicationNameSpace;
+        return $this->ApplicationNamespace;
     }
 
     /**
      * @param string $ApplicationNameSpace
      * @return RESTful
      */
-    public function setApplicationNameSpace(string $ApplicationNameSpace): RESTful
+    public function setApplicationNameSpace(string $ApplicationNamespace): RESTful
     {
-        $this->ApplicationNameSpace = $ApplicationNameSpace;
+        $this->ApplicationNamespace = $ApplicationNamespace;
         return $this;
     }
 
@@ -168,7 +159,7 @@ class RESTful
         $this->Class = 'Index';
 
         if (!empty($uri[1])) {
-            $this->Class = $this->getApplicationNameSpace() . '\\' . $uri[1];
+            $this->Class = $this->getApplicationNameSpace() . '\\Route\\' . $uri[1];
         }
 
         $collectionRequest = false;
@@ -238,6 +229,7 @@ class RESTful
     public function run()
     {
         try {
+            $this->ApplicationAuthenticated = $this->isAuthenticated();
             $this->parseURI();
             if ($this->RequireAuth && !$this->ApplicationAuthenticated) {
                 throw new Exception(Error::AUTH_UNAUTHORIZED);
