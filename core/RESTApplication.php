@@ -16,7 +16,7 @@ class RESTApplication
 
     public function __construct()
     {
-        $this->Logger = new class RESTApplicationDefaultEmptyLogger {
+        $this->Logger = new class {
             public function __call(){};
         };
     }
