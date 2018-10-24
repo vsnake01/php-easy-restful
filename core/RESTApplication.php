@@ -14,7 +14,12 @@ class RESTApplication
     protected $Redirect = null;
     private $Logger;
 
-    public function __construct(){}
+    public function __construct()
+    {
+        $this->Logger = new class RESTApplicationDefaultEmptyLogger {
+            public function __call(){};
+        };
+    }
 
     public function setLogger($LoggerObject)
     {
