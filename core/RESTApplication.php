@@ -17,7 +17,7 @@ class RESTApplication
     public function __construct()
     {
         $this->Logger = new class {
-            public function __call(){};
+            public function __call($name, $args){};
         };
     }
 
